@@ -30,7 +30,7 @@ QUERY_TEST = pm.PrettyMIDI("UT_Determination.mid")
 '''
 adds every note in a given MIDI file to an array by using a dataclass, saves the note, accidental (if it exists), octave, and duration
 '''
-def notes_details(instrument, collection_added = []):
+def notes_details(instrument: 'pm.Instrument', collection_added: 'list'):
     for note in instrument.notes:
         curr_note = list(pm.note_number_to_name(note.pitch))
         collection_added.append(Note(curr_note[0], curr_note[1] if len(curr_note) == 3 else '',     # pitch, accidental
@@ -45,7 +45,7 @@ ex: {['Lead 1 (square)']: [Note('G', '', 2, 1.2), Note('A', '', 2, 1.4))]}
 def generate_note_dict(midi_file):
     midi_dict = {}
     for instrument in midi_file.instruments:
-        midi_dict[pm.program_to_instrument_name(instrument.program)] = notes_details(instrument)
+        midi_dict[pm.program_to_instrument_name(instrument.program)] = notes_details(instrument, [])
     
     return midi_dict
 
@@ -54,11 +54,11 @@ def tempo_difference(query_file, collection_file):
     return abs(query_file.estimate_tempo() - collection_file.estimate_tempo())
 
 '''
-the total instrumment similarity is calculated based on how much overlap there is between instruments names
+the total instrumment similarity is calculated based on how much overlap there is between instruments names (by chars)
 this is then normalized by dividing the total similarity (tot_sim) by the sqrt of the sum of instruments squared
-the higher this value, the more similar the instrument names are
+the higher this value, the more similar the instrument names are, 1 being the highest
 '''
-def instrument_similarity(query_intrmts, collection_intrmts):
+def instrument_similarity(query_intrmts: "list['Note']", collection_intrmts: "list['Note']"):
     max_sim = 0
     max_instr = []
     for qi in query_intrmts.instruments:
@@ -88,12 +88,11 @@ def semitone_distance(n1: 'Note', n2: 'Note') -> 'int':
     
     return min((n2_val - n1_val) % 12, (n1_val - n2_val) % 12)
 
-"""
+'''
 finds the distance an array of query notes (qn) is from a collection (cn),
 returns the closest sequence and the standardized euclidian distance
 qn or cn comes from the dict from generate_note_dict for any given instrument (key)
-"""
-# will eventually add this type of documentation to all the functions
+'''
 def sequence_distance(qn: "list['Note']", cn: "list['Note']") -> tuple['float', 'list']:
     min_weight = float('inf')
     best_match = []
@@ -113,18 +112,14 @@ def sequence_distance(qn: "list['Note']", cn: "list['Note']") -> tuple['float', 
     return round(min_weight, 3), best_match
 
 '''
-given a query and collection MIDI file, finds the closest related sequence from the two most related instruments
-returning 0, even though I think it's wrong???
+given a query and collection MIDI files, finds the closest related sequence from the two most related instruments
+returning 0, even though it's wrong
 '''
-def rank_instruments(query, collection):
+def rank_instruments(query: "list['Note']", collection: "list['Note']"):
     instrmt_similarity, instruments = instrument_similarity(query, collection)
-    print(instrmt_similarity)
     query_intrmt = generate_note_dict(query)[pm.program_to_instrument_name(instruments[0].program)]
     collection_intrmt = generate_note_dict(collection)[pm.program_to_instrument_name(instruments[1].program)]
-    # previous steps causing it to be the same?
-    #print(query_intrmt[:20])
-    #print(collection_intrmt[:20])
-    return sequence_distance(query_intrmt[:20], collection_intrmt[:20]), query_intrmt[:20]
+    return sequence_distance(query_intrmt[:20], collection_intrmt)
 
 
 # TESTING
@@ -134,16 +129,10 @@ test_query_intrmts = [instrument for instrument in QUERY_TEST.instruments]
 instrmt_similarity, instruments = instrument_similarity(QUERY_TEST, COLLECTION_TEST) #FDFFDG vs FDADFD
 #print(generate_note_dict(COLLECTION_TEST)[pm.program_to_instrument_name(instruments[1].program)])
 ri_test = rank_instruments(QUERY_TEST, COLLECTION_TEST)
-for n in ri_test[0][1]:
-    print(n.note, end="")
-print()
-for n in ri_test[1]:
-    print(n.note, end="")
-print()
-print(ri_test[0][0])
+print(ri_test)
 
 #print(instrument_similarity(test_query_intrmts, test_collection_intrmts))
 #print(f"#### \n{semitone_distance(Note('C', '', 2, 1.2), Note('B', '', 2, 1.4))}")
 
-print(sequence_distance([Note('B', 'b', 2, 1.2), Note('F', '#', 2, 1.4)], 
-        [Note('E', 'b', 2, 1.2), Note('A', '', 2, 1.4), Note('B', '', 2, 1.2), Note('A', '', 2, 1.4)]))
+#sprint(sequence_distance([Note('B', 'b', 2, 1.2), Note('F', '#', 2, 1.4)],
+         #[Note('E', 'b', 2, 1.2), Note('A', '', 2, 1.4), Note('B', '', 2, 1.2), Note('A', '', 2, 1.4)]))
