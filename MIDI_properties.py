@@ -102,11 +102,11 @@ def sequence_distance(qn: "list['Note']", cn: "list['Note']") -> tuple['float', 
         curr_match = []
         for q in range(len(qn)):
             note_dist = semitone_distance(cn[c + q], qn[q])
-            total_dist += note_dist
+            total_dist += note_dist**2
             curr_match.append(cn[c + q])
 
-        if min_weight > total_dist:
-            min_weight = total_dist
+        if min_weight > math.sqrt(total_dist):
+            min_weight = math.sqrt(total_dist)
             best_match = curr_match
 
     return round(min_weight, 3), best_match
@@ -129,7 +129,7 @@ test_query_intrmts = [instrument for instrument in QUERY_TEST.instruments]
 instrmt_similarity, instruments = instrument_similarity(QUERY_TEST, COLLECTION_TEST) #FDFFDG vs FDADFD
 #print(generate_note_dict(COLLECTION_TEST)[pm.program_to_instrument_name(instruments[1].program)])
 ri_test = rank_instruments(QUERY_TEST, COLLECTION_TEST)
-print(ri_test)
+#print(ri_test)
 
 #print(instrument_similarity(test_query_intrmts, test_collection_intrmts))
 #print(f"#### \n{semitone_distance(Note('C', '', 2, 1.2), Note('B', '', 2, 1.4))}")
