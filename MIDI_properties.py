@@ -1,5 +1,6 @@
 import pretty_midi as pm
 import math
+import collections
 from dataclasses import dataclass
 
 '''
@@ -56,24 +57,31 @@ def tempo_difference(query_file, collection_file):
 '''
 the total instrumment similarity is calculated based on how much overlap there is between instruments names (by chars)
 this is then normalized by dividing the total similarity (tot_sim) by the sqrt of the sum of instruments squared
-the higher this value, the more similar the instrument names are, 1 being the highest
+the higher this value, the more similar the instrument names are, 1 being the highest.
+instrument_similarity returns a dictionary with each similarity vlaue and the intruments assigned to those values
 '''
-def instrument_similarity(query_intrmts: "list['Note']", collection_intrmts: "list['Note']"):
+def instrument_similarity(query_instrmts: 'pm.PrettyMIDI', collection_instrmts: 'pm.PrettyMIDI'):
+    j = 0
     max_sim = 0
-    max_instr = []
-    for qi in query_intrmts.instruments:
-        for ci in collection_intrmts.instruments:
-            tot_sim = 0
-            qi_name = pm.program_to_instrument_name(qi.program) 
-            ci_name = pm.program_to_instrument_name(ci.program) 
-            overlap = set(qi_name.split()) & set(ci_name.split())
-            tot_sim += len(overlap) / (len(qi_name.split()) + len(ci_name.split()) - len(overlap))
+    similarities = {}
 
-            if tot_sim > max_sim:
-                max_sim = tot_sim
-                max_instr = [qi, ci]
+    qi = query_instrmts.instruments
+    ci = collection_instrmts.instruments
+    min_instrument = qi if len(qi) < len(ci) else ci
+    max_instrument = ci if len(qi) < len(ci) else qi
 
-    return max_sim, max_instr
+    for i in range(len(min_instrument)):
+        qi_name = pm.program_to_instrument_name(min_instrument[i].program)
+        ci_name = pm.program_to_instrument_name(max_instrument[j].program)
+        overlap = set((qi_name).split()) & set(ci_name.split())
+        tot_sim = len(overlap) / (len(qi_name.split()) + len(ci_name.split()) - len(overlap))
+
+        if tot_sim > max_sim:
+            max_sim = tot_sim
+            similarities[max_sim] = [min_instrument[i], max_instrument[j]]
+            j += 1
+
+    return collections.OrderedDict(similarities)
 
 '''
 finds the distance between two notes based on:
@@ -112,23 +120,29 @@ def sequence_distance(qn: "list['Note']", cn: "list['Note']") -> tuple['float', 
     return round(min_weight, 3), best_match
 
 '''
-given a query and collection MIDI files, finds the closest related sequence from the two most related instruments
-returning 0, even though it's wrong
+given a query and collection MIDI objects, calculates the total similarity across all intruments
 '''
-def rank_instruments(query: "list['Note']", collection: "list['Note']"):
-    instrmt_similarity, instruments = instrument_similarity(query, collection)
-    query_intrmt = generate_note_dict(query)[pm.program_to_instrument_name(instruments[0].program)]
-    collection_intrmt = generate_note_dict(collection)[pm.program_to_instrument_name(instruments[1].program)]
-    return sequence_distance(query_intrmt[:20], collection_intrmt)
+def rank_instruments(query: 'pm.PrettyMIDI', collection: 'pm.PrettyMIDI'):
+    instrument_total = 0
+    instrmt_similarity = instrument_similarity(query, collection)
+    for instrmt in instrmt_similarity.keys():
+        query_intrmt = generate_note_dict(query)[
+            pm.program_to_instrument_name(instrmt_similarity[instrmt][0].program)]
+        collection_intrmt = generate_note_dict(collection)[
+            pm.program_to_instrument_name(instrmt_similarity[instrmt][1].program)]
+        instrument_total += math.pow(sequence_distance(query_intrmt[:20], collection_intrmt)[0], 2)
+    return math.sqrt(instrument_total)
 
+def rank_collection(query: "list['Note']"):
+    return
 
 # TESTING
 test_collection_intrmts = [instrument for instrument in COLLECTION_TEST.instruments]
 test_query_intrmts = [instrument for instrument in QUERY_TEST.instruments]
 
-instrmt_similarity, instruments = instrument_similarity(QUERY_TEST, COLLECTION_TEST) #FDFFDG vs FDADFD
+instrmt_similarity = instrument_similarity(QUERY_TEST, COLLECTION_TEST) #FDFFDG vs FDADFD
 #print(generate_note_dict(COLLECTION_TEST)[pm.program_to_instrument_name(instruments[1].program)])
-ri_test = rank_instruments(QUERY_TEST, COLLECTION_TEST)
+print(rank_instruments(QUERY_TEST, COLLECTION_TEST))
 #print(ri_test)
 
 #print(instrument_similarity(test_query_intrmts, test_collection_intrmts))
