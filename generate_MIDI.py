@@ -47,7 +47,7 @@ def generate_notes(note_durs: 'int') -> 'list':
 '''
 returns a randomly populated MIDI file (pm object) with intruments and notes
 '''
-def assign_instr(m_file=pm.PrettyMIDI(), t='', i_len=r.randint(5, 10), tot_dur=r.randint(10, 50)):
+def generate_file(m_file=pm.PrettyMIDI(), t='', i_len=r.randint(5, 10), tot_dur=r.randint(10, 50)):
     tempo = choose_tempo(t)
     instruments = choose_instruments(i_len)
     for i in instruments:
@@ -72,7 +72,9 @@ creates n randomly generated MIDI files in the Collection directory, simply name
 '''
 def create_collection(n_docs: 'int'):
     for i in range(n_docs):
-        assign_instr().write(f'Collection/Piece{i + 1}.mid')
-
+        generate_file().write(f'Collection/Piece{i + 1}.mid')
 
 create_collection(2)
+
+
+query_instr = [instrument for instrument in generate_file().instruments]
