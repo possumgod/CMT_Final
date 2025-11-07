@@ -1,6 +1,5 @@
 import pretty_midi as pm
 import math
-import collections
 from dataclasses import dataclass
 
 '''
@@ -18,7 +17,7 @@ class Note:
     duration: float
 
 # stores distances from C to each base note, for example, it takes 2 'steps' to go from C to D
-NOTE_VALUES = { 'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
+NOTE_VALUES = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
 
 # collection and query files used for testing
 COLLECTION_TEST = pm.PrettyMIDI("GF_Theme.mid")
@@ -43,7 +42,7 @@ def notes_details(instrument: 'pm.Instrument', collection_added: 'list'):
 populates a dictionary with notes, stored according to each instrument in the given MIDI file
 ex: {['Lead 1 (square)']: [Note('G', '', 2, 1.2), Note('A', '', 2, 1.4))]}
 '''
-def generate_note_dict(midi_file):
+def generate_note_dict(midi_file: 'pm.PrettyMIDI') -> 'dict':
     midi_dict = {}
     for instrument in midi_file.instruments:
         midi_dict[pm.program_to_instrument_name(instrument.program)] = notes_details(instrument, [])
@@ -51,14 +50,13 @@ def generate_note_dict(midi_file):
     return midi_dict
 
 # difference in estimated tempo between two MIDI files
-def tempo_difference(query_file, collection_file):
+def tempo_difference(query_file: 'pm.PrettyMIDI', collection_file: 'pm.PrettyMIDI') -> float:
     return abs(query_file.estimate_tempo() - collection_file.estimate_tempo())
 
 '''
 the total instrumment similarity is calculated based on how much overlap there is between instruments names (by chars)
-this is then normalized by dividing the total similarity (tot_sim) by the sqrt of the sum of instruments squared
-the higher this value, the more similar the instrument names are, 1 being the highest.
-instrument_similarity returns a dictionary with each similarity vlaue and the intruments assigned to those values
+this is then normalized by dividing the total length, the higher this value, the more similar the instrument names are, 1 being the highest.
+instrument_similarity returns a dictionary with each similarity vlaue and the instruments assigned to those values
 '''
 def instrument_similarity(query_instrmts: 'pm.PrettyMIDI', collection_instrmts: 'pm.PrettyMIDI'):
     j = 0
@@ -81,7 +79,7 @@ def instrument_similarity(query_instrmts: 'pm.PrettyMIDI', collection_instrmts: 
             similarities[max_sim] = [min_instrument[i], max_instrument[j]]
             j += 1
 
-    return collections.OrderedDict(similarities)
+    return dict(sorted(similarities.items(), key=lambda item: item[1]))
 
 '''
 finds the distance between two notes based on:
@@ -120,7 +118,9 @@ def sequence_distance(qn: "list['Note']", cn: "list['Note']") -> tuple['float', 
     return round(min_weight, 3), best_match
 
 '''
-given a query and collection MIDI objects, calculates the total similarity across all intruments
+given a query and collection MIDI objects, creates an instrument similarity dict with each set of similar
+instruments, then iterating through and calculating the semitone sequence distance between each pair.
+This value is then squared, added to a total, the square root of this total is then the final returned val
 '''
 def rank_instruments(query: 'pm.PrettyMIDI', collection: 'pm.PrettyMIDI'):
     instrument_total = 0
@@ -130,19 +130,40 @@ def rank_instruments(query: 'pm.PrettyMIDI', collection: 'pm.PrettyMIDI'):
             pm.program_to_instrument_name(instrmt_similarity[instrmt][0].program)]
         collection_intrmt = generate_note_dict(collection)[
             pm.program_to_instrument_name(instrmt_similarity[instrmt][1].program)]
-        instrument_total += math.pow(sequence_distance(query_intrmt[:20], collection_intrmt)[0], 2)
+        instrument_total += math.pow(sequence_distance(query_intrmt, collection_intrmt)[0], 2)
     return math.sqrt(instrument_total)
 
-def rank_collection(query: "list['Note']"):
-    return
+'''
+given a query MIDI object and a list of file names from the collection, returns a dictionary for 
+each piece in the collection (as the key) and the instrument similarity value
+'''
+def rank_collection(query: 'pm.PrettyMIDI', total_collection: "list['str']") -> 'dict':
+    ranking = {}
+    for c in total_collection:
+        curr_name = c.split('.')[0]#.split('/')[1]
+        curr_collection = pm.PrettyMIDI(c)
+        ranking[curr_name] = rank_instruments(query, curr_collection)
+    return ranking
+
+'''
+returns the top r (default value 10) entries in the ranking dictionary where precision (the value) 
+is higher than the given p (default value of 20)
+'''
+def return_ranking(query: 'pm.PrettyMIDI', total_collection: "list['str']", p=2000, r=10) -> 'dict':
+    return dict((k, v) for k, v in dict(sorted(rank_collection(query, total_collection).items(), 
+                        key=lambda item: item[1])[:r]).items() if v < p)
+
+
 
 # TESTING
 test_collection_intrmts = [instrument for instrument in COLLECTION_TEST.instruments]
 test_query_intrmts = [instrument for instrument in QUERY_TEST.instruments]
 
-instrmt_similarity = instrument_similarity(QUERY_TEST, COLLECTION_TEST) #FDFFDG vs FDADFD
+print(rank_instruments(pm.PrettyMIDI('Collection/Piece1.mid'), COLLECTION_TEST))
+print(return_ranking(pm.PrettyMIDI('UT_Determination.mid'), ['GF_Theme.mid']))
+#instrmt_similarity = instrument_similarity(QUERY_TEST, COLLECTION_TEST) #FDFFDG vs FDADFD
 #print(generate_note_dict(COLLECTION_TEST)[pm.program_to_instrument_name(instruments[1].program)])
-print(rank_instruments(QUERY_TEST, COLLECTION_TEST))
+#print(rank_instruments(QUERY_TEST, COLLECTION_TEST))
 #print(ri_test)
 
 #print(instrument_similarity(test_query_intrmts, test_collection_intrmts))
